@@ -22,7 +22,7 @@ variable "tags" {
 variable "containers" {
   description = "Map of container names to their configuration"
   type = map(object({
-    access_type = string  # "private", "blob", or "container"
+    access_type = string # "private", "blob", or "container"
   }))
   default = {}
 }

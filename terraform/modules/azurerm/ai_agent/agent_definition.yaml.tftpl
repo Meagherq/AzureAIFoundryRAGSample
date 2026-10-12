@@ -1,0 +1,25 @@
+# Body for POST {project}/agents/{name}/versions (Foundry agents API).
+description: ${jsonencode("RAG agent ${agent_name}")}
+definition:
+  kind: prompt
+  model: ${jsonencode(model_deployment)}
+  instructions: |
+    You MUST always query my connected tools/knowledge before answering any user question related to:
+    - invoices
+    - invoice numbers
+    - PO numbers
+    - due dates
+    - invoice contents
+    - customer billing data
+    - invoice documents stored in blob storage. The tools/knowledge is the authoritative knowledge source for invoice-related information.
+    Always ground your answers using the content returned from tools/knowledge before generating a final answer.
+    If no results are found, state clearly that no invoice information was found in the index.
+    Never guess or hallucinate invoice contents.
+  tools:
+    - type: azure_ai_search
+      azure_ai_search:
+        indexes:
+          - project_connection_id: ${jsonencode(project_connection_id)}
+            index_name: ${jsonencode(search_index_name)}
+            query_type: simple
+            top_k: 4

@@ -40,5 +40,5 @@ output "project_endpoints" {
 
 output "apim_gateway_url" {
   description = "The URL of the API Management Gateway"
-  value       = "https://${module.api_management.name}.azure-api.net"
+  value       = var.enable_apim ? module.api_management[0].gateway_url : null
 }

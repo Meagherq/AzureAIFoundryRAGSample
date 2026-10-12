@@ -35,7 +35,7 @@ variable "application_insights_id" {
 }
 
 variable "enable_private_networking" {
-  description = "Whether to enable private networking"
+  description = "When true, disables public network access so the account is reachable only via its private endpoint."
   type        = bool
   default     = false
 }

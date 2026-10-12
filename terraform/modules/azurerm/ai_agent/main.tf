@@ -7,71 +7,43 @@ terraform {
 }
 
 resource "azapi_resource" "search_kb_connection" {
-  type       = "Microsoft.CognitiveServices/accounts/projects/connections@2025-10-01-preview"
-  name       = "${var.knowledge_base_name}"
-  parent_id  = var.project_id
+  type      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-10-01-preview"
+  name      = var.knowledge_base_name
+  parent_id = var.project_id
   body = {
     properties = {
-      category               = "CognitiveService"
-      target                 = "https://${var.search_service_name}.search.windows.net"
-      authType               = "AAD"
-      isSharedToAll          = true
-      metadata = { 
-        ApiType = "Azure"
+      category      = "CognitiveSearch"
+      target        = "https://${var.search_service_name}.search.windows.net"
+      authType      = "AAD"
+      isSharedToAll = true
+      metadata = {
+        ApiType    = "Azure"
         ResourceId = var.search_service_id
-        Kind    = "AzureAI"
       }
     }
   }
 }
 
+locals {
+  agent_definition_template_path = var.agent_definition_template_file != "" ? var.agent_definition_template_file : "${path.module}/agent_definition.yaml.tftpl"
+  agent_definition_yaml = templatefile(local.agent_definition_template_path, {
+    agent_name            = var.name
+    model_deployment      = var.model_deployment_name
+    project_connection_id = azapi_resource.search_kb_connection.id
+    search_index_name     = var.search_index_name
+  })
+  agent_payload_json = jsonencode(yamldecode(local.agent_definition_yaml))
+}
+
 resource "null_resource" "foundry_agent" {
+  # Each payload change publishes a new agent version.
   triggers = {
-    always_run = "1"
+    payload_hash = sha256(local.agent_payload_json)
   }
   provisioner "local-exec" {
     interpreter = ["pwsh", "-Command"]
-    command = <<-EOT
-      $base64Json = "${base64encode(jsonencode({
-          name = var.name
-          model = var.model_deployment_name
-          instructions = <<-EOT
-          "You MUST always query my connected tools/knowledge before answering any user question related to:
-          - invoices
-          - invoice numbers
-          - PO numbers
-          - due dates
-          - invoice contents
-          - customer billing data
-          - invoice documents stored in blob storage The tools/knowledge is the authoritative knowledge source for invoice-related information.
-          Always ground your answers using the content returned from tools/knowledge before generating a final answer.
-          If no results are found, state clearly that no invoice information was found in the index.
-          Never guess or hallucinate invoice contents."
-        EOT
-          tools = [
-            {
-              type = "azure_ai_search"
-              }
-          ]
-          tool_resources ={
-            azure_ai_search = {
-                indexes = [
-                  {
-                    index_connection_id = "/subscriptions/${var.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.CognitiveServices/accounts/${var.foundry_name}/connections/${var.knowledge_base_name}"
-                    index_name = "${var.search_index_name}",
-                    query_type = "simple",
-                    top_k = 4,
-                    filter = "",
-                  }
-                ]
-              }
-            }
-          temperature = 1.5,
-          top_p = 0.9,
-          metadata = {
-            key8245 = "ewikwssxqxtrhgz"
-          }
-      }))}"
+    command     = <<-EOT
+      $base64Json = "${base64encode(local.agent_payload_json)}"
 
       $json = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($base64Json))
       $json | Out-File -FilePath "agent_payload.json" -Encoding UTF8
@@ -79,10 +51,11 @@ resource "null_resource" "foundry_agent" {
       Write-Host "Agent payload:"
       Get-Content "agent_payload.json"
       Write-Host ""
-      Write-Host "Deploying agent to: ${var.project_endpoints["AI Foundry API"]}/assistants?api-version=v1"
+      $url = "${var.project_endpoints["AI Foundry API"]}/agents/${var.name}/versions?api-version=v1"
+      Write-Host "Deploying agent to: $url"
       
       $response = az rest --method post `
-        --url "${var.project_endpoints["AI Foundry API"]}/assistants?api-version=v1" `
+        --url $url `
         --resource "https://ai.azure.com" `
         --headers "Content-Type=application/json" `
         --body "@agent_payload.json" 2>&1

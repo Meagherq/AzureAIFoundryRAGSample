@@ -5,7 +5,7 @@ resource "azurerm_cognitive_account" "account" {
   kind                          = "AIServices"
   project_management_enabled    = true
   custom_subdomain_name         = "cog-${var.name}"
-  public_network_access_enabled = true # We control access via network_acls now
+  public_network_access_enabled = !var.enable_private_networking
   local_auth_enabled            = false
 
   network_acls {

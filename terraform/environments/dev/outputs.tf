@@ -19,7 +19,7 @@ output "search_service_id" {
 }
 
 output "cognitive_service_endpoint" {
-    value = module.project.cognitive_service_endpoint
+  value = module.project.cognitive_service_endpoint
 }
 
 # output "apim_gateway_url" {

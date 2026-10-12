@@ -8,7 +8,7 @@ resource "azurerm_api_management_api" "api" {
   protocols             = var.protocols
   service_url           = var.service_url
   subscription_required = var.subscription_required
-  
+
   dynamic "import" {
     for_each = var.content_format != null ? [1] : []
     content {

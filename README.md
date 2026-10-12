@@ -71,6 +71,16 @@ This architecture prioritizes security by minimizing public exposure and using i
 *   PowerShell
 *   An active Azure Subscription with sufficient permissions to create resources and assign RBAC roles
 
+### Optional Terraform Inputs
+
+The dev example keeps the existing deployment behavior by default. Set `enable_apim = false` to skip APIM and its API operations, or set `enable_rbac = false` when role assignments are managed manually. The role-assignment resources remain in `terraform/project/main.tf` and are enabled again by setting `enable_rbac = true`.
+
+To use networking created by another team, set `use_existing_network = true` and provide `existing_network_resource_group_name`, `existing_vnet_name`, and `existing_private_endpoint_subnet_name`. Also provide `existing_apim_subnet_name` when APIM is enabled. Terraform reads these resources with AzureRM data sources instead of creating the VNet and subnets.
+
+The agent definition defaults to `terraform/modules/azurerm/ai_agent/agent_definition.yaml.tftpl`. Set `agent_definition_template_file` to use a custom YAML template; Terraform interpolates the agent name, model deployment, search connection ID, and index name while leaving the instructions in YAML.
+
+The dev example also includes a commented GPT-5.6 Luna profile (`gpt-5.6-luna`, version `2026-07-09`). Check model availability and quota for the target region before enabling it. GPT-5.6 tool calling is documented through the Responses API, so confirm compatibility with this sample's Assistants-style agent creation flow before switching.
+
 ### Step 1: Deploy Infrastructure
 
 #### Option A: Local Deployment (Manual)
@@ -92,19 +102,32 @@ This architecture prioritizes security by minimizing public exposure and using i
     terraform init
     ```
 
+    State is stored locally by default. To use remote state in Azure Storage instead, create `backend.tf` in this folder before running init:
+    ```hcl
+    terraform {
+      backend "azurerm" {
+        resource_group_name  = "rg-tfstate"
+        storage_account_name = "sttfstatedev"
+        container_name       = "tfstate"
+        key                  = "aifoundry-rag.tfstate"
+        use_azuread_auth     = true
+      }
+    }
+    ```
+
 5.  **First Apply** - Deploy the infrastructure:
     ```bash
     terraform apply
     ```
     
-    **Note:** The first apply may encounter issues with role assignments that depend on managed identities being created first. This is expected.
+    **Note:** With `enable_rbac = true`, the first apply may encounter role-assignment propagation delays while managed identities are created.
 
 6.  **Second Apply** - Complete role assignments:
     ```bash
     terraform apply
     ```
     
-    Run the apply a second time to ensure all role assignments (RBAC) are properly configured after the managed identities have been created and propagated.
+    When `enable_rbac = true`, run apply again after identity propagation to complete role assignments. When `enable_rbac = false`, provision the required roles manually before creating or using the agent.
 
 7.  **Capture Outputs:** Note the following Terraform outputs for later steps:
     *   `resource_group_name`

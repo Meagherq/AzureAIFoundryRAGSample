@@ -23,6 +23,23 @@ apim_publisher_name  = "Contoso Dev"
 apim_publisher_email = "admin@contoso.com"
 apim_sku             = "Developer"
 apim_sku_count       = 1
+enable_apim          = true
+enable_rbac          = true
+
+# false = Foundry account is publicly reachable (Entra ID auth still required).
+# true  = private endpoint only; Terraform and clients must run from the VNet.
+enable_private_networking = false
+
+# Keep false to create the sample VNet and subnets. Set true to look up
+# networking created by another team using the names below.
+use_existing_network                    = false
+existing_network_resource_group_name    = ""
+existing_vnet_name                      = ""
+existing_private_endpoint_subnet_name   = ""
+existing_apim_subnet_name               = ""
+
+# Optional YAML Terraform template path; defaults to the module's template.
+agent_definition_template_file = ""
 
 # OpenAI Configuration
 openai_deployment_name = "gpt41"
@@ -30,6 +47,13 @@ openai_model_name      = "gpt-4.1"
 openai_model_version   = "2025-04-14"
 openai_model_sku_name  = "GlobalStandard"
 openai_model_sku_capacity = 50
+
+# GPT-5.6 Luna profile (model version 2026-07-09).
+# Confirm region/quota availability and agent API compatibility before switching.
+# openai_deployment_name     = "gpt-5.6-luna"
+# openai_model_name          = "gpt-5.6-luna"
+# openai_model_version       = "2026-07-09"
+# openai_model_sku_name      = "GlobalStandard"
 
 
 tags = {

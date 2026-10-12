@@ -15,7 +15,7 @@ output "endpoint" {
 
 output "apiKey" {
   description = "The API key of the Search service"
-  value = azurerm_search_service.search.primary_key
+  value       = azurerm_search_service.search.primary_key
 }
 
 output "principal_id" {

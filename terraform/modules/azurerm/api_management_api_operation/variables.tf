@@ -37,7 +37,7 @@ variable "template_parameters" {
     name        = string
     type        = string
     required    = bool
-    description = optional(string) 
+    description = optional(string)
     values      = optional(list(string))
   }))
   default = []

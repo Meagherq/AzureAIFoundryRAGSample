@@ -9,12 +9,36 @@ terraform {
   }
 }
 
-locals {
-  resource_group_name = "rg-${var.workload}-${var.environment_prefix}-${var.suffix}"
-  actual_data_location = var.data_location != "" ? var.data_location : var.location
+data "azurerm_client_config" "current" {}
+
+data "azurerm_virtual_network" "existing" {
+  count               = var.use_existing_network ? 1 : 0
+  name                = var.existing_vnet_name
+  resource_group_name = var.existing_network_resource_group_name
 }
 
-data "azurerm_client_config" "current" {}
+data "azurerm_subnet" "existing_private_endpoint" {
+  count                = var.use_existing_network ? 1 : 0
+  name                 = var.existing_private_endpoint_subnet_name
+  virtual_network_name = var.existing_vnet_name
+  resource_group_name  = var.existing_network_resource_group_name
+}
+
+data "azurerm_subnet" "existing_apim" {
+  count                = var.use_existing_network && var.enable_apim ? 1 : 0
+  name                 = var.existing_apim_subnet_name
+  virtual_network_name = var.existing_vnet_name
+  resource_group_name  = var.existing_network_resource_group_name
+}
+
+locals {
+  resource_group_name        = "rg-${var.workload}-${var.environment_prefix}-${var.suffix}"
+  actual_data_location       = var.data_location != "" ? var.data_location : var.location
+  virtual_network_id         = var.use_existing_network ? data.azurerm_virtual_network.existing[0].id : module.vnet[0].vnet_id
+  virtual_network_name       = var.use_existing_network ? data.azurerm_virtual_network.existing[0].name : module.vnet[0].name
+  private_endpoint_subnet_id = var.use_existing_network ? data.azurerm_subnet.existing_private_endpoint[0].id : module.subnet_pe[0].id
+  apim_subnet_id             = var.enable_apim ? (var.use_existing_network ? data.azurerm_subnet.existing_apim[0].id : module.subnet_apim[0].id) : null
+}
 
 module "resource_group" {
   source = "../modules/azurerm/resource_group"
@@ -23,10 +47,10 @@ module "resource_group" {
   location = var.location
   tags     = var.tags
 }
-
 module "vnet" {
   source = "../modules/azurerm/virtual_network"
 
+  count               = var.use_existing_network ? 0 : 1
   name                = "vnet-${var.workload}-${var.environment_prefix}-${var.suffix}"
   location            = var.location
   resource_group_name = module.resource_group.name
@@ -36,24 +60,27 @@ module "vnet" {
 module "subnet_apim" {
   source = "../modules/azurerm/subnet"
 
+  count                = !var.use_existing_network && var.enable_apim ? 1 : 0
   name                 = "snet-apim"
   resource_group_name  = module.resource_group.name
-  virtual_network_name = module.vnet.name
+  virtual_network_name = module.vnet[0].name
   address_prefixes     = ["10.0.1.0/24"]
 }
 
 module "subnet_pe" {
   source = "../modules/azurerm/subnet"
 
+  count                = var.use_existing_network ? 0 : 1
   name                 = "snet-pe"
   resource_group_name  = module.resource_group.name
-  virtual_network_name = module.vnet.name
+  virtual_network_name = module.vnet[0].name
   address_prefixes     = ["10.0.2.0/24"]
 }
 
 module "network_security_group" {
   source = "../modules/azurerm/network_security_group"
 
+  count               = !var.use_existing_network && var.enable_apim ? 1 : 0
   name                = "nsg-apim"
   location            = var.location
   resource_group_name = module.resource_group.name
@@ -99,13 +126,15 @@ module "network_security_group" {
 module "nsg_association" {
   source = "../modules/azurerm/nsg_association"
 
-  subnet_id                 = module.subnet_apim.id
-  network_security_group_id = module.network_security_group.id
+  count                     = !var.use_existing_network && var.enable_apim ? 1 : 0
+  subnet_id                 = module.subnet_apim[0].id
+  network_security_group_id = module.network_security_group[0].id
 }
 
 module "api_management" {
   source = "../modules/azurerm/api_management"
 
+  count               = var.enable_apim ? 1 : 0
   name                = "apim-${var.workload}-${var.environment_prefix}-${var.suffix}"
   location            = var.location
   resource_group_name = module.resource_group.name
@@ -115,20 +144,21 @@ module "api_management" {
   sku_count           = var.apim_sku_count
   tags                = var.tags
 
-  subnet_id            = module.subnet_apim.id
+  subnet_id            = local.apim_subnet_id
   virtual_network_type = "External"
 }
 
 module "api_management_backend" {
   source = "../modules/azurerm/api_management_backend"
 
+  count               = var.enable_apim ? 1 : 0
   name                = "openai-backend"
   resource_group_name = module.resource_group.name
-  api_management_name = module.api_management.name
+  api_management_name = module.api_management[0].name
   protocol            = "http"
   # Use the Azure AI Foundry project endpoint with the project path included
   # Format: https://<account>.services.ai.azure.com/api/projects/<project-name>
-  url                 = "${trimsuffix(lookup(module.cognitive_project.endpoints, "inference", module.cognitive.endpoint), "/")}/api/projects/${module.cognitive_project.name}"
+  url = "${trimsuffix(lookup(module.cognitive_project.endpoints, "inference", module.cognitive.endpoint), "/")}/api/projects/${module.cognitive_project.name}"
 
   depends_on = [module.cognitive_project]
 }
@@ -136,9 +166,10 @@ module "api_management_backend" {
 module "api_management_api" {
   source = "../modules/azurerm/api_management_api"
 
+  count                 = var.enable_apim ? 1 : 0
   name                  = "agent-api"
   resource_group_name   = module.resource_group.name
-  api_management_name   = module.api_management.name
+  api_management_name   = module.api_management[0].name
   revision              = "1"
   display_name          = "AI Agent API"
   path                  = "agent"
@@ -150,8 +181,9 @@ module "api_management_api" {
 module "api_management_api_policy" {
   source = "../modules/azurerm/api_management_api_policy"
 
-  api_name            = module.api_management_api.name
-  api_management_name = module.api_management.name
+  count               = var.enable_apim ? 1 : 0
+  api_name            = module.api_management_api[0].name
+  api_management_name = module.api_management[0].name
   resource_group_name = module.resource_group.name
 
   xml_content = <<XML
@@ -179,7 +211,7 @@ module "api_management_api_policy" {
     </choose>
     
     <base />
-    <set-backend-service backend-id="${module.api_management_backend.name}" />
+    <set-backend-service backend-id="${module.api_management_backend[0].name}" />
   </inbound>
   
   <backend>
@@ -214,9 +246,10 @@ XML
 module "op_create_thread_run" {
   source = "../modules/azurerm/api_management_api_operation"
 
+  count               = var.enable_apim ? 1 : 0
   operation_id        = "create-thread-run"
-  api_name            = module.api_management_api.name
-  api_management_name = module.api_management.name
+  api_name            = module.api_management_api[0].name
+  api_management_name = module.api_management[0].name
   resource_group_name = module.resource_group.name
   display_name        = "Create Thread and Run"
   method              = "POST"
@@ -227,9 +260,10 @@ module "op_create_thread_run" {
 module "op_get_run" {
   source = "../modules/azurerm/api_management_api_operation"
 
+  count               = var.enable_apim ? 1 : 0
   operation_id        = "get-run"
-  api_name            = module.api_management_api.name
-  api_management_name = module.api_management.name
+  api_name            = module.api_management_api[0].name
+  api_management_name = module.api_management[0].name
   resource_group_name = module.resource_group.name
   display_name        = "Get Run"
   method              = "GET"
@@ -253,9 +287,10 @@ module "op_get_run" {
 module "op_list_messages" {
   source = "../modules/azurerm/api_management_api_operation"
 
+  count               = var.enable_apim ? 1 : 0
   operation_id        = "list-messages"
-  api_name            = module.api_management_api.name
-  api_management_name = module.api_management.name
+  api_name            = module.api_management_api[0].name
+  api_management_name = module.api_management[0].name
   resource_group_name = module.resource_group.name
   display_name        = "List Messages"
   method              = "GET"
@@ -275,9 +310,10 @@ module "op_list_messages" {
 module "op_options" {
   source = "../modules/azurerm/api_management_api_operation"
 
+  count               = var.enable_apim ? 1 : 0
   operation_id        = "options-catchall"
-  api_name            = module.api_management_api.name
-  api_management_name = module.api_management.name
+  api_name            = module.api_management_api[0].name
+  api_management_name = module.api_management[0].name
   resource_group_name = module.resource_group.name
   display_name        = "CORS Preflight"
   method              = "OPTIONS"
@@ -291,7 +327,7 @@ module "storage_account" {
   name                = "st${var.workload}${var.environment_prefix}${var.suffix}"
   location            = var.location
   resource_group_name = module.resource_group.name
-  containers = { "test" = { access_type = "private" } }
+  containers          = { "test" = { access_type = "private" } }
   tags                = var.tags
 }
 
@@ -345,83 +381,120 @@ module "search_service" {
 module "search_service_index" {
   source = "../modules/azurerm/search_service_index/"
 
-  resource_group_name    = module.resource_group.name
-  location               = var.location
-  search_service_name    = module.search_service.name
+  resource_group_name       = module.resource_group.name
+  location                  = var.location
+  search_service_name       = module.search_service.name
   storage_connection_string = module.storage_account.primary_connection_string
-  storage_account_name   = module.storage_account.name
-  blob_container_name    = "test"
+  storage_account_name      = module.storage_account.name
+  blob_container_name       = "test"
 
   datasource_name = "doc-datasource"
   index_name      = "ragdocs"
   skillset_name   = "doc-skillset"
   indexer_name    = "doc-indexer"
-  
+
+  # Indexer validates storage access on create, so the search MI role must be live first.
+  depends_on = [
+    time_sleep.wait_for_search_storage_role,
+    azurerm_role_assignment.current_user_search_contributor,
+  ]
 }
 
+# Set enable_rbac=false when these permissions are managed outside Terraform.
 resource "azurerm_role_assignment" "apim_search_reader" {
+  count                = var.enable_rbac && var.enable_apim ? 1 : 0
   scope                = module.search_service.id
   role_definition_name = "Search Index Data Reader"
-  principal_id         = module.api_management.principal_id
+  principal_id         = module.api_management[0].principal_id
 
   depends_on = [module.api_management]
 }
 
 resource "azurerm_role_assignment" "cognitive_search_reader" {
+  count                = var.enable_rbac ? 1 : 0
   scope                = module.search_service.id
   role_definition_name = "Search Index Data Reader"
   principal_id         = module.cognitive.identity_principal_id
 }
 
+# Keyless (AAD) search connections use the Foundry account identity.
+resource "azurerm_role_assignment" "cognitive_search_index_contributor" {
+  count                = var.enable_rbac ? 1 : 0
+  scope                = module.search_service.id
+  role_definition_name = "Search Index Data Contributor"
+  principal_id         = module.cognitive.identity_principal_id
+}
+
+resource "azurerm_role_assignment" "cognitive_search_service_contributor" {
+  count                = var.enable_rbac ? 1 : 0
+  scope                = module.search_service.id
+  role_definition_name = "Search Service Contributor"
+  principal_id         = module.cognitive.identity_principal_id
+}
+
 resource "azurerm_role_assignment" "current_user_search_contributor" {
+  count                = var.enable_rbac ? 1 : 0
   scope                = module.search_service.id
   role_definition_name = "Search Index Data Contributor"
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
 resource "azurerm_role_assignment" "cognitive_project_search_reader" {
+  count                = var.enable_rbac ? 1 : 0
   scope                = module.search_service.id
   role_definition_name = "Search Index Data Reader"
   principal_id         = module.cognitive_project.identity_principal_id
 }
 
 resource "azurerm_role_assignment" "current_user_search_project_contributor" {
+  count                = var.enable_rbac ? 1 : 0
   scope                = module.search_service.id
   role_definition_name = "Search Index Data Contributor"
   principal_id         = module.cognitive_project.identity_principal_id
 }
 
 resource "azurerm_role_assignment" "current_search_project_contributor" {
+  count                = var.enable_rbac ? 1 : 0
   scope                = module.search_service.id
   role_definition_name = "Search Service Contributor"
   principal_id         = module.cognitive_project.identity_principal_id
 }
 
 resource "azurerm_role_assignment" "search_storage_reader" {
+  count                = var.enable_rbac ? 1 : 0
   scope                = module.storage_account.id
   role_definition_name = "Storage Blob Data Reader"
   principal_id         = module.search_service.principal_id
 }
 
+resource "time_sleep" "wait_for_search_storage_role" {
+  count           = var.enable_rbac ? 1 : 0
+  depends_on      = [azurerm_role_assignment.search_storage_reader]
+  create_duration = "120s"
+}
+
 # The AI Agent is hosted in the Cognitive Account. 
 # APIM needs permission to invoke the Agent (Cognitive Services OpenAI User).
 resource "azurerm_role_assignment" "apim_cognitive_user" {
+  count                = var.enable_rbac && var.enable_apim ? 1 : 0
   scope                = module.cognitive.id
   role_definition_name = "Cognitive Services OpenAI User"
-  principal_id         = module.api_management.principal_id
+  principal_id         = module.api_management[0].principal_id
 
   depends_on = [module.api_management]
 }
 
 # The deploying principal needs permission to create AI agents via the REST API.
-# "Azure AI User" includes the Microsoft.CognitiveServices/accounts/AIServices/agents/* data action.
+# "Foundry User" (formerly "Azure AI User") includes the Microsoft.CognitiveServices/accounts/AIServices/agents/* data action.
 resource "azurerm_role_assignment" "deployer_cognitive_ai_user" {
-  scope                = module.cognitive.id
-  role_definition_name = "Azure AI User"
-  principal_id         = data.azurerm_client_config.current.object_id
+  count              = var.enable_rbac ? 1 : 0
+  scope              = module.cognitive.id
+  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
+  principal_id       = data.azurerm_client_config.current.object_id
 }
 
 resource "time_sleep" "wait_for_ai_developer_role" {
+  count           = var.enable_rbac ? 1 : 0
   depends_on      = [azurerm_role_assignment.deployer_cognitive_ai_user]
   create_duration = "60s"
 }
@@ -437,7 +510,7 @@ module "cognitive" {
   application_insights_id = module.application_insights.id
   tags                    = var.tags
 
-  enable_private_networking = false
+  enable_private_networking = var.enable_private_networking
 }
 
 module "cognitive_private_dns_zone" {
@@ -462,7 +535,7 @@ module "cognitive_private_endpoint" {
   name                           = "${var.workload}-${var.environment_prefix}-${var.suffix}"
   location                       = var.location
   resource_group_name            = module.resource_group.name
-  subnet_id                      = module.subnet_pe.id
+  subnet_id                      = local.private_endpoint_subnet_id
   private_connection_resource_id = module.cognitive.id
   subresource_names              = ["account"]
   private_dns_zone_ids           = [module.cognitive_private_dns_zone.id]
@@ -475,7 +548,7 @@ module "cognitive_private_dns_zone_virtual_network_link" {
   name                  = "pdznl-${var.workload}-${var.environment_prefix}-${var.suffix}"
   resource_group_name   = module.resource_group.name
   private_dns_zone_name = module.cognitive_private_dns_zone.name
-  virtual_network_id    = module.vnet.vnet_id
+  virtual_network_id    = local.virtual_network_id
 }
 
 module "azureml_private_dns_zone_virtual_network_link" {
@@ -484,7 +557,7 @@ module "azureml_private_dns_zone_virtual_network_link" {
   name                  = "pdznl-azureml-${var.workload}-${var.environment_prefix}-${var.suffix}"
   resource_group_name   = module.resource_group.name
   private_dns_zone_name = module.azureml_private_dns_zone.name
-  virtual_network_id    = module.vnet.vnet_id
+  virtual_network_id    = local.virtual_network_id
 }
 
 module "cognitive_project" {
@@ -506,29 +579,30 @@ module "cognitive_deployment" {
   model_sku_name       = var.openai_model_sku_name
   model_sku_capacity   = var.openai_model_sku_capacity
 
-  depends_on = [ module.cognitive_project ]
+  depends_on = [module.cognitive_project]
 }
 
 module "ai_agent" {
   source = "../modules/azurerm/ai_agent"
 
-  name                  = "agent-${var.workload}-${var.environment_prefix}-${var.suffix}"
-  cognitive_account_id  = module.cognitive.id
-  model_deployment_name = var.openai_deployment_name
-  search_endpoint       = module.search_service.endpoint
-  search_index_name     = "ragdocs"
-  
-  project_id            = module.cognitive_project.id
-  project_endpoints     = module.cognitive_project.endpoints
-  search_service_name   = module.search_service.name
-  knowledge_base_name   = "ragdocs"
-  search_api_key        = module.search_service.apiKey
-  search_service_id     = module.search_service.id
-  search_index_connection_id = module.search_service.id
-  subscription_id       = var.subscription_id
-  resource_group_name        = module.resource_group.name
-  foundry_name          = module.cognitive.name
+  name                           = "agent-${var.workload}-${var.environment_prefix}-${var.suffix}"
+  agent_definition_template_file = var.agent_definition_template_file
+  cognitive_account_id           = module.cognitive.id
+  model_deployment_name          = var.openai_deployment_name
+  search_endpoint                = module.search_service.endpoint
+  search_index_name              = "ragdocs"
 
-  depends_on = [ module.cognitive_deployment, module.search_service_index, time_sleep.wait_for_ai_developer_role ]
+  project_id                 = module.cognitive_project.id
+  project_endpoints          = module.cognitive_project.endpoints
+  search_service_name        = module.search_service.name
+  knowledge_base_name        = "ragdocs"
+  search_api_key             = module.search_service.apiKey
+  search_service_id          = module.search_service.id
+  search_index_connection_id = module.search_service.id
+  subscription_id            = var.subscription_id
+  resource_group_name        = module.resource_group.name
+  foundry_name               = module.cognitive.name
+
+  depends_on = [module.cognitive_deployment, module.search_service_index, time_sleep.wait_for_ai_developer_role]
 }
 

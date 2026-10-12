@@ -8,28 +8,28 @@ data "azurerm_client_config" "current" {}
 
 # 1) Data Source
 resource "null_resource" "datasource" {
-    triggers = {
-        always_run = "1"
-    }
+  triggers = {
+    always_run = "1"
+  }
   provisioner "local-exec" {
     interpreter = ["pwsh", "-Command"]
     command = <<EOT
         $base64Json = "${
-            base64encode(
-                jsonencode(
-                    {
-                        name = "${var.datasource_name}"
-                        type = "azureblob"
-                        credentials = {
-                            connectionString = "ResourceId=/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.Storage/storageAccounts/${var.storage_account_name};"
-                        }
-                        container = { 
-                            name = "${var.blob_container_name}"
-                        }
-                    }
-                )
-            )
-        }"
+    base64encode(
+      jsonencode(
+        {
+          name = "${var.datasource_name}"
+          type = "azureblob"
+          credentials = {
+            connectionString = "ResourceId=/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.Storage/storageAccounts/${var.storage_account_name};"
+          }
+          container = {
+            name = "${var.blob_container_name}"
+          }
+        }
+      )
+    )
+  }"
 
         $json = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($base64Json))
         
@@ -64,143 +64,143 @@ resource "null_resource" "datasource" {
             exit 1
         }
     EOT
-  }
+}
 }
 
 # 2) Index
 resource "null_resource" "index" {
-    triggers = {
-        always_run = "1"
-    }
-    provisioner "local-exec" {
-        interpreter = ["pwsh", "-Command"]
-        command = <<EOT
+  triggers = {
+    always_run = "1"
+  }
+  provisioner "local-exec" {
+    interpreter = ["pwsh", "-Command"]
+    command = <<EOT
             $base64Json = "${base64encode(jsonencode(
-                {
-                    name = "${var.index_name}"
-                    fields = [
-                                { 
-                                    name = "id"
-                                    type = "Edm.String"
-                                    key = true
-                                    filterable = true 
-                                    searchable = true
-                                    analyzer = "keyword"
-                                },
-                                {
-                                    name = "parent_id"
-                                    type = "Edm.String"
-                                    key = false
-                                    filterable = true
-                                    searchable = true
-                                    analyzer = "keyword"
-                                },
-                                { 
-                                    name = "content"
-                                    type = "Edm.String"
-                                    searchable = true
-                                    analyzer = "en.lucene" 
-                                },
-                                {
-                                    name = "blob_url"
-                                    type = "Edm.String"
-                                    searchable = false
-                                    filterable = true
-                                    retrievable = true
-                                    stored = true
-                                    sortable = true
-                                    facetable = false
-                                    key = false
-                                    synonymMaps = []
-                                },
-                                {
-                                    name = "metadata_storage_path"
-                                    type = "Edm.String"
-                                    searchable = true
-                                    filterable = true
-                                    retrievable = true
-                                    stored = true
-                                    sortable = true
-                                    facetable = false
-                                    key = false
-                                    analyzer = "standard.lucene"
-                                    synonymMaps = []
-                                },
-                                {
-                                    name = "metadata_storage_name"
-                                    type = "Edm.String"
-                                    searchable = true
-                                    filterable = true
-                                    retrievable = true
-                                    stored = true
-                                    sortable = true
-                                    facetable = false
-                                    key = false
-                                    analyzer = "keyword"
-                                    synonymMaps = []
-                                },
-                                {
-                                    name = "metadata_storage_last_modified"
-                                    type = "Edm.DateTimeOffset"
-                                    searchable = false
-                                    filterable = true
-                                    retrievable = true
-                                    stored = true
-                                    sortable = true
-                                    facetable = false
-                                    key = false
-                                    synonymMaps = []
-                                },
-                                {
-                                    name = "metadata_storage_size"
-                                    type = "Edm.Int64"
-                                    searchable = false
-                                    filterable = true
-                                    retrievable = true
-                                    stored = true
-                                    sortable = true
-                                    facetable = false
-                                    key = false
-                                    synonymMaps = []
-                                },
-                                {
-                                    name = "invoiceNo"
-                                    type = "Edm.String"
-                                    searchable = true
-                                    filterable = true
-                                    retrievable = true
-                                    stored = true
-                                    sortable = false
-                                    facetable = true
-                                    key = false
-                                    analyzer = "standard.lucene"
-                                    synonymMaps = []
-                                },
-                                {
-                                    name = "customerId"
-                                    type = "Edm.String"
-                                    searchable = true
-                                    filterable = true
-                                    retrievable = true
-                                    stored = true
-                                    sortable = false
-                                    facetable = true
-                                    key = false
-                                    analyzer = "standard.lucene"
-                                    synonymMaps = []
-                                }
-                    ],
-                    suggesters = [
-                        { 
-                            name = "sg"
-                            searchMode = "analyzingInfixMatching"
-                            sourceFields = [ 
-                                "content"
-                            ] 
-                        }
-                    ]
-                }
-            ))}"
+    {
+      name = "${var.index_name}"
+      fields = [
+        {
+          name       = "id"
+          type       = "Edm.String"
+          key        = true
+          filterable = true
+          searchable = true
+          analyzer   = "keyword"
+        },
+        {
+          name       = "parent_id"
+          type       = "Edm.String"
+          key        = false
+          filterable = true
+          searchable = true
+          analyzer   = "keyword"
+        },
+        {
+          name       = "content"
+          type       = "Edm.String"
+          searchable = true
+          analyzer   = "en.lucene"
+        },
+        {
+          name        = "blob_url"
+          type        = "Edm.String"
+          searchable  = false
+          filterable  = true
+          retrievable = true
+          stored      = true
+          sortable    = true
+          facetable   = false
+          key         = false
+          synonymMaps = []
+        },
+        {
+          name        = "metadata_storage_path"
+          type        = "Edm.String"
+          searchable  = true
+          filterable  = true
+          retrievable = true
+          stored      = true
+          sortable    = true
+          facetable   = false
+          key         = false
+          analyzer    = "standard.lucene"
+          synonymMaps = []
+        },
+        {
+          name        = "metadata_storage_name"
+          type        = "Edm.String"
+          searchable  = true
+          filterable  = true
+          retrievable = true
+          stored      = true
+          sortable    = true
+          facetable   = false
+          key         = false
+          analyzer    = "keyword"
+          synonymMaps = []
+        },
+        {
+          name        = "metadata_storage_last_modified"
+          type        = "Edm.DateTimeOffset"
+          searchable  = false
+          filterable  = true
+          retrievable = true
+          stored      = true
+          sortable    = true
+          facetable   = false
+          key         = false
+          synonymMaps = []
+        },
+        {
+          name        = "metadata_storage_size"
+          type        = "Edm.Int64"
+          searchable  = false
+          filterable  = true
+          retrievable = true
+          stored      = true
+          sortable    = true
+          facetable   = false
+          key         = false
+          synonymMaps = []
+        },
+        {
+          name        = "invoiceNo"
+          type        = "Edm.String"
+          searchable  = true
+          filterable  = true
+          retrievable = true
+          stored      = true
+          sortable    = false
+          facetable   = true
+          key         = false
+          analyzer    = "standard.lucene"
+          synonymMaps = []
+        },
+        {
+          name        = "customerId"
+          type        = "Edm.String"
+          searchable  = true
+          filterable  = true
+          retrievable = true
+          stored      = true
+          sortable    = false
+          facetable   = true
+          key         = false
+          analyzer    = "standard.lucene"
+          synonymMaps = []
+        }
+      ],
+      suggesters = [
+        {
+          name       = "sg"
+          searchMode = "analyzingInfixMatching"
+          sourceFields = [
+            "content"
+          ]
+        }
+      ]
+    }
+))}"
 
             $json = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($base64Json))
             
@@ -235,61 +235,61 @@ resource "null_resource" "index" {
                 exit 1
             }
         EOT
-    }
-    depends_on = [
-        null_resource.datasource
-    ]
+}
+depends_on = [
+  null_resource.datasource
+]
 }
 
 # 3) Skillset with Knowledge store
 resource "null_resource" "skillset" {
-    triggers = {
-        always_run = "1"
-    }
-    provisioner "local-exec" {
-        interpreter = ["pwsh", "-Command"]
-        command = <<EOT
+  triggers = {
+    always_run = "1"
+  }
+  provisioner "local-exec" {
+    interpreter = ["pwsh", "-Command"]
+    command = <<EOT
             $base64Json = "${base64encode(jsonencode(
-                {
-                    name = "${var.skillset_name}"
-                    skills = [
-                        {
-                            "@odata.type" = "#Microsoft.Skills.Text.KeyPhraseExtractionSkill"
-                            inputs = [ { name = "text", source = "/document/content" } ]
-                            outputs = [ { name = "keyPhrases", targetName = "pages" } ]
-                        }
-                    ]
-                    indexProjections = {
-                        selectors = [
-                        {
-                            targetIndexName = "${var.index_name}",
-                            parentKeyFieldName = "parent_id",
-                            sourceContext = "/document/pages/*",
-                            mappings = [
-                            {
-                                name = "content",
-                                source = "/document/pages/*",
-                                inputs = []
-                            },
-                            {
-                                name = "blob_url",
-                                source = "/document/metadata_storage_path",
-                                inputs = []
-                            },
-                            {
-                                name = "metadata_storage_name",
-                                source = "/document/metadata_storage_name",
-                                inputs = []
-                            }
-                            ]
-                        }
-                        ],
-                        parameters = {
-                            projectionMode = "skipIndexingParentDocuments"
-                        }
-                    }
-                }
-            ))}"
+    {
+      name = "${var.skillset_name}"
+      skills = [
+        {
+          "@odata.type" = "#Microsoft.Skills.Text.KeyPhraseExtractionSkill"
+          inputs        = [{ name = "text", source = "/document/content" }]
+          outputs       = [{ name = "keyPhrases", targetName = "pages" }]
+        }
+      ]
+      indexProjections = {
+        selectors = [
+          {
+            targetIndexName    = "${var.index_name}",
+            parentKeyFieldName = "parent_id",
+            sourceContext      = "/document/pages/*",
+            mappings = [
+              {
+                name   = "content",
+                source = "/document/pages/*",
+                inputs = []
+              },
+              {
+                name   = "blob_url",
+                source = "/document/metadata_storage_path",
+                inputs = []
+              },
+              {
+                name   = "metadata_storage_name",
+                source = "/document/metadata_storage_name",
+                inputs = []
+              }
+            ]
+          }
+        ],
+        parameters = {
+          projectionMode = "skipIndexingParentDocuments"
+        }
+      }
+    }
+))}"
 
             $json = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($base64Json))
             
@@ -324,37 +324,37 @@ resource "null_resource" "skillset" {
                 exit 1
             }
         EOT
-    }
-    depends_on = [
-        null_resource.datasource,
-        null_resource.index
-    ]
+}
+depends_on = [
+  null_resource.datasource,
+  null_resource.index
+]
 }
 
 # 4) Indexer
 resource "null_resource" "indexer" {
-    triggers = {
-        always_run = "1"
-    }
-    provisioner "local-exec" {
-        interpreter = ["pwsh", "-Command"]
-        command = <<EOT
+  triggers = {
+    always_run = "1"
+  }
+  provisioner "local-exec" {
+    interpreter = ["pwsh", "-Command"]
+    command = <<EOT
             $base64Json = "${base64encode(jsonencode(
-            {
-                name = "${var.indexer_name}"
-                dataSourceName = "${var.datasource_name}"
-                targetIndexName = "${var.index_name}"
-                schedule = { interval = "P1D" }
-                parameters = { configuration = { dataToExtract = "contentAndMetadata" } }
-                fieldMappings = [
-                {
-                    sourceFieldName = "metadata_storage_path",
-                    targetFieldName = "blob_url",
-                    mappingFunction = null
-                }
-            ],
-            }
-            ))}"
+    {
+      name            = "${var.indexer_name}"
+      dataSourceName  = "${var.datasource_name}"
+      targetIndexName = "${var.index_name}"
+      schedule        = { interval = "P1D" }
+      parameters      = { configuration = { dataToExtract = "contentAndMetadata" } }
+      fieldMappings = [
+        {
+          sourceFieldName = "metadata_storage_path",
+          targetFieldName = "blob_url",
+          mappingFunction = null
+        }
+      ],
+    }
+))}"
 
             $json = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($base64Json))
             
@@ -389,10 +389,10 @@ resource "null_resource" "indexer" {
                 exit 1
             }
         EOT
-    }
-    depends_on = [
-        null_resource.datasource,
-        null_resource.index,
-        null_resource.skillset
-    ]
+}
+depends_on = [
+  null_resource.datasource,
+  null_resource.index,
+  null_resource.skillset
+]
 }

@@ -3,12 +3,18 @@ variable "name" {
   description = "The name of the AI Agent."
 }
 
+variable "agent_definition_template_file" {
+  type        = string
+  default     = ""
+  description = "Optional path to a YAML Terraform template for the agent definition. Defaults to the template shipped with this module."
+}
+
 variable "subscription_id" {
   description = "The Azure Subscription ID"
   type        = string
 }
 
-variable "resource_group_name" { 
+variable "resource_group_name" {
   description = "The Azure Resource Group Name"
   type        = string
 }
@@ -50,8 +56,8 @@ variable "project_id" {
 }
 
 variable "project_endpoints" {
-  type        = map(string)
-  default     = {}
+  type    = map(string)
+  default = {}
 }
 
 variable "search_service_name" {
@@ -76,11 +82,11 @@ variable "instructions" {
 }
 
 variable "search_api_key" {
-  type = string
+  type        = string
   description = "The Search Resource api key"
 }
 
 variable "search_index_connection_id" {
-  type = string
+  type        = string
   description = "The Search Resource index id"
 }

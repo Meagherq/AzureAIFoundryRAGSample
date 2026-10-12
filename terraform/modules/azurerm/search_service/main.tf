@@ -3,8 +3,8 @@ resource "azurerm_search_service" "search" {
   location            = var.location
   resource_group_name = var.resource_group_name
 
-  sku            = var.sku
-  replica_count  = var.replica_count
+  sku             = var.sku
+  replica_count   = var.replica_count
   partition_count = var.partition_count
 
   public_network_access_enabled = var.public_network_access_enabled
