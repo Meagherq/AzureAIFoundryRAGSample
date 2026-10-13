@@ -3,10 +3,20 @@ variable "subscription_id" {
   type        = string
 }
 
+variable "private_dns_subscription_id" {
+  description = "The Azure subscription ID containing the externally managed Private DNS Zones."
+  type        = string
+}
+
+variable "resource_group_name" {
+  description = "The name of the existing resource group."
+  type        = string
+}
+
 variable "location" {
   description = "The Azure region where resources will be created"
   type        = string
-  default     = "eastus"
+  default     = "eastus2"
 }
 
 variable "tags" {
@@ -32,36 +42,6 @@ variable "data_location" {
   default     = ""
 }
 
-variable "apim_publisher_name" {
-  description = "The name of publisher/company for APIM"
-  type        = string
-  default     = "Contoso"
-}
-
-variable "apim_publisher_email" {
-  description = "The email of publisher/company for APIM"
-  type        = string
-  default     = "admin@contoso.com"
-}
-
-variable "apim_sku" {
-  description = "The SKU name of the API Management Service"
-  type        = string
-  default     = "Developer"
-}
-
-variable "apim_sku_count" {
-  description = "The number of units of the SKU"
-  type        = number
-  default     = 1
-}
-
-variable "enable_apim" {
-  description = "Whether to create API Management and its API resources."
-  type        = bool
-  default     = true
-}
-
 variable "enable_rbac" {
   description = "Whether Terraform creates the included role assignments. Set false when roles are managed manually."
   type        = bool
@@ -74,34 +54,29 @@ variable "enable_private_networking" {
   default     = false
 }
 
-variable "use_existing_network" {
-  description = "Use a VNet and subnets managed by another team."
-  type        = bool
-  default     = false
-}
-
 variable "existing_network_resource_group_name" {
   description = "Resource group containing the externally managed VNet and subnets."
   type        = string
-  default     = ""
 }
 
 variable "existing_vnet_name" {
   description = "Name of the externally managed VNet."
   type        = string
-  default     = ""
 }
 
 variable "existing_private_endpoint_subnet_name" {
   description = "Name of the externally managed private-endpoint subnet."
   type        = string
-  default     = ""
 }
 
-variable "existing_apim_subnet_name" {
-  description = "Name of the externally managed APIM subnet."
+variable "existing_agent_subnet_name" {
+  description = "Name of the dedicated subnet delegated to Microsoft.App/environments for Foundry Agent VNet injection."
   type        = string
-  default     = ""
+}
+
+variable "existing_private_dns_zone_resource_group_name" {
+  description = "Resource group containing the externally managed Private DNS Zones."
+  type        = string
 }
 
 variable "agent_definition_template_file" {

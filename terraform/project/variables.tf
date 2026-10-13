@@ -3,22 +3,21 @@ variable "subscription_id" {
   type        = string
 }
 
+variable "existing_resource_group_name" {
+  description = "The name of the existing resource group"
+  type        = string
+}
+
 variable "location" {
   description = "The Azure region where resources will be created"
   type        = string
-  default     = "eastus"
+  default     = "eastus2"
 }
 
 variable "tags" {
   description = "A mapping of tags to assign to the resources"
   type        = map(string)
   default     = {}
-}
-
-variable "enable_apim" {
-  description = "Whether to create the API Management gateway and API resources."
-  type        = bool
-  default     = true
 }
 
 variable "enable_rbac" {
@@ -33,34 +32,59 @@ variable "enable_private_networking" {
   default     = false
 }
 
-variable "use_existing_network" {
-  description = "Use an externally managed VNet and subnet data sources instead of creating network resources."
-  type        = bool
-  default     = false
-}
-
 variable "existing_network_resource_group_name" {
   description = "Resource group containing the externally managed VNet and subnets."
   type        = string
-  default     = ""
 }
 
 variable "existing_vnet_name" {
   description = "Name of the externally managed VNet."
   type        = string
-  default     = ""
 }
 
 variable "existing_private_endpoint_subnet_name" {
   description = "Name of the externally managed subnet used by private endpoints."
   type        = string
-  default     = ""
 }
 
-variable "existing_apim_subnet_name" {
-  description = "Name of the externally managed subnet reserved for APIM. Required when APIM and an existing VNet are enabled."
+variable "existing_agent_subnet_name" {
+  description = "Name of the dedicated subnet delegated to Microsoft.App/environments for Foundry Agent VNet injection."
   type        = string
-  default     = ""
+}
+
+variable "existing_private_dns_zone_resource_group_name" {
+  description = "Resource group containing the externally managed Private DNS Zones."
+  type        = string
+}
+
+variable "cognitive_private_dns_zone_name" {
+  description = "Name of the Private DNS Zone for Cognitive Services."
+  type        = string
+  default     = "privatelink.cognitiveservices.azure.com"
+}
+
+variable "azureml_private_dns_zone_name" {
+  description = "Name of the Private DNS Zone for Azure Machine Learning."
+  type        = string
+  default     = "privatelink.api.azureml.ms"
+}
+
+variable "blob_private_dns_zone_name" {
+  description = "Name of the Private DNS Zone for Blob Storage."
+  type        = string
+  default     = "privatelink.blob.core.windows.net"
+}
+
+variable "key_vault_private_dns_zone_name" {
+  description = "Name of the Private DNS Zone for Key Vault."
+  type        = string
+  default     = "privatelink.vaultcore.azure.net"
+}
+
+variable "search_private_dns_zone_name" {
+  description = "Name of the Private DNS Zone for Azure AI Search."
+  type        = string
+  default     = "privatelink.search.windows.net"
 }
 
 variable "agent_definition_template_file" {
@@ -87,30 +111,6 @@ variable "data_location" {
 variable "workload" {
   description = "Workload name"
   type        = string
-}
-
-variable "apim_publisher_name" {
-  description = "The name of publisher/company for APIM"
-  type        = string
-  default     = "Contoso"
-}
-
-variable "apim_publisher_email" {
-  description = "The email of publisher/company for APIM"
-  type        = string
-  default     = "admin@contoso.com"
-}
-
-variable "apim_sku" {
-  description = "The SKU name of the API Management Service"
-  type        = string
-  default     = "Developer"
-}
-
-variable "apim_sku_count" {
-  description = "The number of units of the SKU"
-  type        = number
-  default     = 1
 }
 
 variable "openai_deployment_name" {

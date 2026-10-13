@@ -1,16 +1,16 @@
 output "resource_group_id" {
   description = "The ID of the resource group"
-  value       = module.resource_group.id
+  value       = data.azurerm_resource_group.existing_resource_group.id
 }
 
 output "resource_group_name" {
   description = "The name of the resource group"
-  value       = module.resource_group.name
+  value       = data.azurerm_resource_group.existing_resource_group.name
 }
 
 output "resource_group_location" {
   description = "The location of the resource group"
-  value       = module.resource_group.location
+  value       = data.azurerm_resource_group.existing_resource_group.location
 }
 
 output "search_service_id" {
@@ -36,9 +36,4 @@ output "cognitive_service_endpoint" {
 output "project_endpoints" {
   description = "The endpoints of the Azure AI Foundry Project"
   value       = module.cognitive_project.endpoints
-}
-
-output "apim_gateway_url" {
-  description = "The URL of the API Management Gateway"
-  value       = var.enable_apim ? module.api_management[0].gateway_url : null
 }

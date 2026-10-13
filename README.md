@@ -2,7 +2,7 @@
 
 > **Disclaimer:** This repository is provided purely as a demonstration of these workflows. You are free to use, modify, and adapt the code as you see fit; however, it is offered as-is with no warranty or support of any kind. Use it at your own risk. This is not production-ready code — it should be reviewed, understood, and rewritten to suit your own environment before any real-world use.
 
-This repository demonstrates how to build a complete Retrieval-Augmented Generation (RAG) solution using Azure AI Foundry. The solution connects an AI Agent to document data stored in Azure Blob Storage through Azure AI Search, with secure access via Azure API Management (APIM).
+This repository demonstrates how to build a complete Retrieval-Augmented Generation (RAG) solution using Azure AI Foundry. The solution connects an AI Agent to document data stored in Azure Blob Storage through Azure AI Search.
 
 ## Architecture Overview
 
@@ -12,10 +12,9 @@ The solution deploys the following resources:
 *   **Azure AI Foundry Project:** Manages the AI Agent configuration.
 *   **Azure AI Search:** Indexes documents from blob storage and provides semantic search capabilities for RAG.
 *   **Azure Storage Account:** Stores source documents (invoice .txt files) in a blob container named `test`.
-*   **Azure API Management:** Acts as the secure gateway and entry point for all client requests.
-*   **Virtual Network (VNet):** Provides a secure network boundary.
-*   **Private Endpoint:** Connects the VNet securely to the Azure OpenAI service.
-*   **Private DNS Zone:** Ensures proper DNS resolution for the private endpoint.
+*   **Existing Virtual Network (VNet):** Provides the secure network boundary used by the solution.
+*   **Private Endpoints:** Connect the VNet securely to Cognitive Services, Azure AI Search, Storage, and Key Vault.
+*   **Existing Private DNS Zones:** Support private name resolution; DNS zone groups must be configured manually.
 *   **Supporting Services:** Key Vault, Application Insights, and Log Analytics for observability.
 
 ## How RAG Works in This Solution
@@ -30,23 +29,21 @@ The solution deploys the following resources:
     *   The agent uses Azure AI Search to find relevant document chunks from the indexed invoices
     *   Retrieved context is combined with the user's question
     *   The GPT model generates a grounded response based on the indexed documents
-4.  **Secure Access:** All agent interactions flow through APIM, which enforces authentication and routing policies.
+4.  **Secure Access:** Private endpoints and Microsoft Entra ID authentication protect access to the Azure services.
 
 ## Security Posture
 
 This architecture prioritizes security by minimizing public exposure and using identity-based authentication.
 
 ### Network Security
-*   **Private Backend:** Public network access to the Azure OpenAI service is **disabled**. It can only be accessed via its Private Endpoint.
-*   **VNet Integration:**
-    *   **APIM:** Deployed in "External" mode within a dedicated subnet (`snet-apim`). This allows it to accept public traffic while having direct access to private resources in the VNet.
-    *   **OpenAI:** Connected to the VNet via a Private Endpoint in a dedicated subnet (`snet-pe`).
-*   **Traffic Flow:** All traffic between APIM and OpenAI travels over the Microsoft Azure backbone network, never traversing the public internet.
+*   **Private Backend:** When `enable_private_networking` is enabled, public network access to the Azure OpenAI service is disabled.
+*   **VNet Integration:** Cognitive Services, Azure AI Search, Storage, and Key Vault each own a Private Endpoint in the externally managed private-endpoint subnet.
+*   **DNS Management:** Terraform looks up existing Private DNS Zones, but the Private DNS Zone Group blocks are commented out because this repository requires manual DNS configuration.
 
 ### Authentication & Authorization
 *   **Identity-Based Access:** The solution is configured to use Azure Active Directory (Entra ID) tokens.
-*   **Token Pass-through:** API Management is configured to pass the client's `Authorization` header (Bearer token) directly to the OpenAI backend.
-*   **No Static Keys:** The APIM configuration does not store or inject static API keys for the backend connection, reducing the risk of credential leakage.
+*   **Identity-Based Access:** Clients authenticate directly with Microsoft Entra ID.
+*   **No Static Keys:** The solution uses managed identities and role assignments where supported.
 
 ### API Policy
 *   **CORS:** A Cross-Origin Resource Sharing (CORS) policy is applied to allow safe cross-origin requests from web clients.
@@ -54,13 +51,13 @@ This architecture prioritizes security by minimizing public exposure and using i
 
 ## Data Path
 
-1.  **Client Request:** A user or application sends an HTTPS request to the public API Management endpoint.
-    *   URL: `https://apim-<workload>-<env>-<suffix>.azure-api.net/agent/...`
+1.  **Client Request:** A user or application sends an authenticated HTTPS request to the Azure AI Foundry project endpoint.
+    *   URL: Use the Azure AI Foundry project endpoint available to your network.
     *   Header: `Authorization: Bearer <valid-azure-ad-token>`
-2.  **Gateway Entry:** The request hits the APIM Gateway.
-3.  **DNS Resolution:** APIM, running inside the VNet, queries the `privatelink.cognitiveservices.azure.com` Private DNS Zone to resolve the OpenAI/Foundry hostname.
+2.  **Service Entry:** The request reaches the Azure AI Foundry project endpoint.
+3.  **DNS Resolution:** The client environment queries the existing Private DNS Zones linked to the VNet.
 4.  **Private Routing:** The DNS zone returns the **Private IP** address of the backend service.
-5.  **Backend Access:** APIM forwards the request securely through the VNet to the Private Endpoint of the Azure AI Foundry Project.
+5.  **Backend Access:** Traffic reaches the Azure AI Foundry Project through its Private Endpoint.
 6.  **Response:** The model processes the request and returns the response via the same secure path.
 
 ## Deployment
@@ -73,9 +70,9 @@ This architecture prioritizes security by minimizing public exposure and using i
 
 ### Optional Terraform Inputs
 
-The dev example keeps the existing deployment behavior by default. Set `enable_apim = false` to skip APIM and its API operations, or set `enable_rbac = false` when role assignments are managed manually. The role-assignment resources remain in `terraform/project/main.tf` and are enabled again by setting `enable_rbac = true`.
+Set `enable_rbac = false` when role assignments are managed manually. The role-assignment resources remain in `terraform/project/main.tf` and are enabled by setting `enable_rbac = true`.
 
-To use networking created by another team, set `use_existing_network = true` and provide `existing_network_resource_group_name`, `existing_vnet_name`, and `existing_private_endpoint_subnet_name`. Also provide `existing_apim_subnet_name` when APIM is enabled. Terraform reads these resources with AzureRM data sources instead of creating the VNet and subnets.
+Provide `existing_network_resource_group_name`, `existing_vnet_name`, and `existing_private_endpoint_subnet_name` for the externally managed network. Also provide `existing_agent_subnet_name` for a dedicated `/27` or larger subnet delegated to `Microsoft.App/environments`; Foundry Agent Service uses this subnet for VNet-injected outbound traffic to private dependencies such as Azure AI Search. Set `private_dns_subscription_id` and `existing_private_dns_zone_resource_group_name` for the Private DNS Zones in the separate DNS subscription and, if the standard names are not used, override the zone name inputs. Terraform uses an aliased AzureRM provider to read the zones from that subscription. Configure the DNS zone groups and VNet links manually.
 
 The agent definition defaults to `terraform/modules/azurerm/ai_agent/agent_definition.yaml.tftpl`. Set `agent_definition_template_file` to use a custom YAML template; Terraform interpolates the agent name, model deployment, search connection ID, and index name while leaving the instructions in YAML.
 
@@ -95,7 +92,7 @@ The dev example also includes a commented GPT-5.6 Luna profile (`gpt-5.6-luna`, 
     cp terraform.tfvars.example terraform.tfvars
     ```
 
-3.  Update `terraform.tfvars` with your specific values (e.g., `subscription_id`, `workload`, `apim_publisher_email`).
+3.  Update `terraform.tfvars` with your specific values (for example, `subscription_id`, `workload`, and the existing network resource names).
 
 4.  Initialize Terraform:
     ```bash
@@ -281,7 +278,7 @@ The agent should retrieve relevant information from your indexed invoice documen
 ### Web Application
 1.  Open `app/index.html` in your browser.
 2.  Fill in the configuration:
-    *   **Agent API Base URL:** Enter the `apim_gateway_url` output with the `/agent` suffix (e.g., `https://apim-....azure-api.net/agent`).
+    *   **Agent API Base URL:** Enter the Azure AI Foundry project endpoint that is reachable from your network.
     *   **Agent Name/ID:** Enter the Agent ID from the Foundry Studio (e.g., `asst_...`).
     *   **API Version:** Default is `v1` (for Foundry Agents) or `2024-05-01-preview` (for Azure OpenAI).
     *   **Access Token:** Generate a token using:

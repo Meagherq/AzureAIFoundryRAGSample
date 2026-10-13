@@ -198,11 +198,9 @@
         <div class="config-grid">
             <div class="form-group full-width">
                 <label for="endpoint">Agent API Base URL</label>
-                <input type="text" id="endpoint" placeholder="https://<your-apim-name>.azure-api.net/agent">
+                <input type="text" id="endpoint" placeholder="https://<your-foundry-endpoint>">
                 <div class="token-info">
-                    <strong>Important:</strong> If using APIM, append <code>/agent</code><br>
-                    <br>
-                    Ex: <code>https://my-apim.azure-api.net/agent</code>
+                    Enter the Azure AI Foundry project endpoint that is reachable from your network.
                 </div>
             </div>
             
@@ -321,9 +319,6 @@
              pathPrefix = "/openai";
         }
         
-        // Auto-detect APIM endpoint and suggest /agent if missing (though we can't force it easily as users might have different API paths)
-        // Ideally user supplies full base URL including API suffix.
-
         // UI Updates
         messageInput.value = '';
         addMessage(text, 'user');
