@@ -52,40 +52,10 @@ variable "existing_agent_subnet_name" {
   type        = string
 }
 
-variable "existing_private_dns_zone_resource_group_name" {
-  description = "Resource group containing the externally managed Private DNS Zones."
-  type        = string
-}
-
-variable "cognitive_private_dns_zone_name" {
-  description = "Name of the Private DNS Zone for Cognitive Services."
-  type        = string
-  default     = "privatelink.cognitiveservices.azure.com"
-}
-
-variable "azureml_private_dns_zone_name" {
-  description = "Name of the Private DNS Zone for Azure Machine Learning."
-  type        = string
-  default     = "privatelink.api.azureml.ms"
-}
-
-variable "blob_private_dns_zone_name" {
-  description = "Name of the Private DNS Zone for Blob Storage."
-  type        = string
-  default     = "privatelink.blob.core.windows.net"
-}
-
-variable "key_vault_private_dns_zone_name" {
-  description = "Name of the Private DNS Zone for Key Vault."
-  type        = string
-  default     = "privatelink.vaultcore.azure.net"
-}
-
-variable "search_private_dns_zone_name" {
-  description = "Name of the Private DNS Zone for Azure AI Search."
-  type        = string
-  default     = "privatelink.search.windows.net"
-}
+# variable "existing_private_dns_zone_resource_group_name" {
+#   description = "Resource group containing the externally managed Private DNS Zones."
+#   type        = string
+# }
 
 variable "agent_definition_template_file" {
   description = "Optional YAML Terraform template path for the Foundry agent definition."
