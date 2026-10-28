@@ -1,7 +1,9 @@
 terraform {
+  required_version = ">= 1.3"
+
   required_providers {
     azurerm = {
-      source                = "hashicorp/azurerm"
+      source = "hashicorp/azurerm"
       # configuration_aliases = [azurerm.private_dns]
     }
     azapi = {
@@ -77,7 +79,7 @@ module "storage_account" {
   private_endpoint_subnet_id = data.azurerm_subnet.existing_private_endpoint.id
   private_dns_zone_ids       = []
   # private_dns_zone_ids       = [data.azurerm_private_dns_zone.blob.id]
-  tags                       = var.tags
+  tags = var.tags
 }
 
 module "key_vault" {
@@ -89,7 +91,7 @@ module "key_vault" {
   private_endpoint_subnet_id = data.azurerm_subnet.existing_private_endpoint.id
   private_dns_zone_ids       = []
   # private_dns_zone_ids       = [data.azurerm_private_dns_zone.key_vault.id]
-  tags                       = var.tags
+  tags = var.tags
 }
 
 module "log_analytics" {
@@ -250,7 +252,7 @@ module "cognitive" {
   #   data.azurerm_private_dns_zone.cognitive.id,
   #   data.azurerm_private_dns_zone.azureml.id,
   # ]
-    private_dns_zone_ids = [
+  private_dns_zone_ids = [
 
   ]
 }
@@ -283,6 +285,9 @@ module "ai_agent" {
 
   name                           = "agent-${var.workload}-${var.environment_prefix}-${var.suffix}"
   agent_definition_template_file = var.agent_definition_template_file
+  sharepoint_connections         = var.sharepoint_connections
+  enable_m365_public_endpoint    = var.enable_m365_public_endpoint
+  m365_authorization_scheme      = var.m365_authorization_scheme
   cognitive_account_id           = module.cognitive.id
   model_deployment_name          = var.openai_deployment_name
   search_endpoint                = module.search_service.endpoint

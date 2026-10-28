@@ -37,3 +37,13 @@ output "project_endpoints" {
   description = "The endpoints of the Azure AI Foundry Project"
   value       = module.cognitive_project.endpoints
 }
+
+output "sharepoint_connection_ids" {
+  description = "SharePoint project connection IDs keyed by connection name."
+  value       = module.ai_agent.sharepoint_connection_ids
+}
+
+output "activity_protocol_endpoint" {
+  description = "Agent Activity Protocol URL for Azure Bot Service."
+  value       = module.ai_agent.activity_protocol_endpoint
+}

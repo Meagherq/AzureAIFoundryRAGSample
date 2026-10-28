@@ -1,0 +1,14 @@
+description: Custom test agent
+definition:
+  kind: prompt
+  model: ${jsonencode(model_deployment)}
+  instructions: Custom instructions must be preserved.
+  tools:
+    - type: azure_ai_search
+      azure_ai_search:
+        indexes:
+          - project_connection_id: ${jsonencode(project_connection_id)}
+            index_name: ${jsonencode(search_index_name)}
+    - type: code_interpreter
+      container:
+        type: auto

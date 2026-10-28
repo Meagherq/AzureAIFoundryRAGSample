@@ -36,7 +36,7 @@ The solution deploys the following resources:
 This architecture prioritizes security by minimizing public exposure and using identity-based authentication.
 
 ### Network Security
-*   **Private Backend:** When `enable_private_networking` is enabled, public network access to the Azure OpenAI service is disabled.
+*   **Private Backend:** When `enable_private_networking` is enabled, account-wide public network access is disabled. The separately configured `enable_m365_public_endpoint` exception allows authenticated Microsoft channel traffic only to the Activity Protocol route.
 *   **VNet Integration:** Cognitive Services, Azure AI Search, Storage, and Key Vault each own a Private Endpoint in the externally managed private-endpoint subnet.
 *   **DNS Management:** Terraform looks up existing Private DNS Zones, but the Private DNS Zone Group blocks are commented out because this repository requires manual DNS configuration.
 
@@ -64,7 +64,7 @@ This architecture prioritizes security by minimizing public exposure and using i
 
 ### Prerequisites
 *   Azure CLI (`az`)
-*   Terraform (>= 1.0)
+*   Terraform (>= 1.3; >= 1.7 to run mocked tests)
 *   PowerShell
 *   An active Azure Subscription with sufficient permissions to create resources and assign RBAC roles
 
@@ -75,6 +75,61 @@ Set `enable_rbac = false` when role assignments are managed manually. The role-a
 Provide `existing_network_resource_group_name`, `existing_vnet_name`, and `existing_private_endpoint_subnet_name` for the externally managed network. Also provide `existing_agent_subnet_name` for a dedicated `/27` or larger subnet delegated to `Microsoft.App/environments`; Foundry Agent Service uses this subnet for VNet-injected outbound traffic to private dependencies such as Azure AI Search. Set `private_dns_subscription_id` and `existing_private_dns_zone_resource_group_name` for the Private DNS Zones in the separate DNS subscription and, if the standard names are not used, override the zone name inputs. Terraform uses an aliased AzureRM provider to read the zones from that subscription. Configure the DNS zone groups and VNet links manually.
 
 The agent definition defaults to `terraform/modules/azurerm/ai_agent/agent_definition.yaml.tftpl`. Set `agent_definition_template_file` to use a custom YAML template; Terraform interpolates the agent name, model deployment, search connection ID, and index name while leaving the instructions in YAML.
+
+### SharePoint grounding connections
+
+Set `sharepoint_connections` to create zero, one, or multiple Foundry project connections. Each map key is a connection name; each `site_url` scopes retrieval to a SharePoint site or folder. Terraform attaches all connections to **one** `sharepoint_grounding_preview` tool alongside the existing Azure AI Search tool:
+
+```hcl
+sharepoint_connections = {
+  sharepoint-policies = {
+    site_url = "https://contoso.sharepoint.com/sites/Policies"
+  }
+  sharepoint-finance = {
+    site_url         = "https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/Invoices"
+    is_shared_to_all = false
+  }
+}
+```
+
+An empty map (the default) preserves the search-only agent. Connection names must be 3-33 characters, start with an alphanumeric character, and contain only alphanumerics, underscores, or hyphens. Don't reuse the search connection name (`ragdocs`). Use site/folder URLs, not browser URLs with query strings or fragments. Connections default to `is_shared_to_all = false`; sharing a connection does not grant users access to SharePoint documents.
+
+The module appends the SharePoint tool after rendering either the built-in or a custom YAML template. When using `sharepoint_connections`, don't also define a SharePoint tool in your custom template; Foundry supports only one SharePoint tool per agent. Customize your agent instructions for the content and questions you expect it to answer. The `sharepoint_connection_ids` output exposes the created connection IDs.
+
+**Authentication and service limitations:** SharePoint grounding is a preview and requires delegated user identity (identity passthrough/on-behalf-of), not application-only or managed-identity authentication. The Foundry project and SharePoint site must be in the same Entra tenant. Users need SharePoint read access, the appropriate Foundry role, and Microsoft 365 Copilot licensing or eligible pay-as-you-go retrieval. The `CustomKeys` connection stores the site URL, not a SharePoint credential; it does not bypass user permissions. Validate retrieval with both an authorized user and a user denied access to the same document. See the [SharePoint tool documentation](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/sharepoint).
+
+**Channel compatibility:** The SharePoint tool documentation currently warns that the tool doesn't work when the agent is published to Microsoft Teams. Enabling the M365 endpoint is a separate capability and does not resolve delegated-authentication or channel limitations. Test SharePoint retrieval through your intended Microsoft 365 Copilot channel before rollout; direct Foundry retrieval alone is not sufficient verification.
+
+### Microsoft 365 Copilot / Activity Protocol access
+
+The dev environment defaults to the following settings (the reusable project/agent modules default public M365 access to `false`):
+
+```hcl
+enable_m365_public_endpoint = true
+m365_authorization_scheme  = "BotServiceRbac"
+```
+
+After creating the agent version, Terraform reads its current endpoint configuration and patches `agent_endpoint.protocol_configuration.activity.enable_m365_public_endpoint`. It preserves existing protocols and direct-client authorization, retains/adds Responses access, and selects the configured Bot Service authorization scheme. Setting the flag back to `false` explicitly disables the public Activity route exception on the next apply; it does not remove other protocols or authorization.
+
+This setting **does not enable account-wide public network access** and is independent of `enable_private_networking`. For private Foundry accounts, Microsoft manages source-IP filtering so Azure Bot Service/M365 can reach only the public Activity Protocol route; management and other APIs remain private. Authentication and authorization are still required. Run Terraform from a client that can reach the project endpoint.
+
+- Use `BotServiceRbac` for `Shared`/`Personal` publishing scope (Foundry permissions required).
+- Use `BotServiceTenant` for `Tenant` publishing scope (tenant-wide access; admin approval required).
+- The `activity_protocol_endpoint` output supplies the Azure Bot Service messaging URL.
+- This repository configures endpoint access, **not** Azure Bot Service creation, Teams channel registration, catalog publishing, or admin consent. Complete those steps using [Publish agents to Microsoft 365 and Teams by using the REST API](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/publish-copilot-virtual-network). Match the publishing scope to your authorization scheme; publishing can replace the Bot Service scheme.
+- Before rollout, verify an authenticated Copilot conversation, expected SharePoint citations/permission trimming, and rejection of unauthorized requests.
+
+### Configuration tests
+
+With PowerShell 7, Terraform >= 1.7 (for test mocks), and initialized Terraform providers, run the focused offline tests:
+
+```powershell
+terraform -chdir=terraform/modules/azurerm/ai_agent init -backend=false
+terraform -chdir=terraform/modules/azurerm/ai_agent test
+pwsh -NoProfile -File terraform/modules/azurerm/ai_agent/tests/configure_agent_endpoint.tests.ps1
+```
+
+The Terraform tests initialize only a mocked search connection in memory, then use plan-only runs for the agent and endpoint; no provisioners execute. The PowerShell tests mock Azure CLI calls. Neither deploys resources or invokes a live agent.
 
 The dev example also includes a commented GPT-5.6 Luna profile (`gpt-5.6-luna`, version `2026-07-09`). Check model availability and quota for the target region before enabling it. GPT-5.6 tool calling is documented through the Responses API, so confirm compatibility with this sample's Assistants-style agent creation flow before switching.
 

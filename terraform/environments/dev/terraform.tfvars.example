@@ -1,15 +1,8 @@
 # Example terraform variables file
 # Copy this file to terraform.tfvars and update with your values
 
-resource_group_name = "rg-azureaifoundry-dev"
-location            = "eastus2"
-
 subscription_id             = "" # Workload subscription ID
-<<<<<<< HEAD
-private_dns_subscription_id = "" # Subscription ID containing the Private DNS Zones
-=======
 # private_dns_subscription_id = "" # Subscription ID containing the Private DNS Zones
->>>>>>> c79c826b71a94eb0cc59c958f480281a3e4a08e0
 
 # Environment Configuration
 environment_prefix = "dev"
@@ -26,8 +19,28 @@ tags = {
 enable_rbac = true
 
 # false = Foundry account is publicly reachable (Entra ID auth still required).
-# true  = private endpoint only; Terraform and clients must run from the VNet.
+# true  = management/direct clients use the private endpoint; run Terraform from the VNet.
+# The M365 Activity Protocol public route is configured independently below.
 enable_private_networking = false
+
+# Required for the M365 public Activity Protocol route, including private Foundry accounts.
+# This does not change enable_private_networking or account-wide public network access.
+enable_m365_public_endpoint = true
+# Use BotServiceTenant instead when publishing with Tenant scope (organization-wide).
+m365_authorization_scheme = "BotServiceRbac"
+
+# Optional: zero, one, or multiple SharePoint site/folder connections.
+# All configured connections are attached to a single SharePoint grounding tool.
+# Requires delegated user authentication, same-tenant SharePoint, and eligible licensing.
+sharepoint_connections = {
+  # sharepoint-policies = {
+  #   site_url = "https://contoso.sharepoint.com/sites/Policies"
+  # }
+  # sharepoint-finance = {
+  #   site_url         = "https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/Invoices"
+  #   is_shared_to_all = false
+  # }
+}
 
 # Existing networking and Private DNS Zones are required.
 existing_resource_group_name                 = "rg-aoai-dev"

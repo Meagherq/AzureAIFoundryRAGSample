@@ -49,9 +49,30 @@ variable "enable_rbac" {
 }
 
 variable "enable_private_networking" {
-  description = "When true, the Foundry account is reachable only via its private endpoint. When false, it is publicly reachable (Entra ID auth still required)."
+  description = "Disable account-wide public network access. The separately configured M365 Activity Protocol exception can still allow authenticated Microsoft channel traffic."
   type        = bool
   default     = false
+}
+
+variable "sharepoint_connections" {
+  description = "SharePoint grounding connections keyed by connection name, each with a site or folder URL."
+  type = map(object({
+    site_url         = string
+    is_shared_to_all = optional(bool, false)
+  }))
+  default = {}
+}
+
+variable "enable_m365_public_endpoint" {
+  description = "Enable source-IP-filtered public Activity Protocol access for Microsoft 365 Copilot. Does not enable account-wide public network access."
+  type        = bool
+  default     = true
+}
+
+variable "m365_authorization_scheme" {
+  description = "BotServiceRbac for Shared/Personal publishing, or BotServiceTenant for Tenant publishing."
+  type        = string
+  default     = "BotServiceRbac"
 }
 
 variable "existing_network_resource_group_name" {

@@ -31,3 +31,13 @@ output "search_service_endpoint" {
   description = "The endpoint of the Azure AI Search service"
   value       = module.project.search_service_endpoint
 }
+
+output "sharepoint_connection_ids" {
+  description = "SharePoint project connection IDs keyed by connection name."
+  value       = module.project.sharepoint_connection_ids
+}
+
+output "activity_protocol_endpoint" {
+  description = "Agent Activity Protocol URL for Azure Bot Service."
+  value       = module.project.activity_protocol_endpoint
+}
