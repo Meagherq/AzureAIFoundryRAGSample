@@ -40,3 +40,17 @@ variable "enable_private_networking" {
   default     = false
 }
 
+variable "agent_subnet_id" {
+  description = "The ID of the dedicated subnet delegated to Microsoft.App/environments for Foundry Agent VNet injection."
+  type        = string
+}
+
+variable "private_endpoint_subnet_id" {
+  description = "The ID of the externally managed subnet for the private endpoint."
+  type        = string
+}
+
+variable "private_dns_zone_ids" {
+  description = "The IDs of the externally managed Private DNS Zones used when the DNS zone group is configured manually."
+  type        = list(string)
+}

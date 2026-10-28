@@ -18,3 +18,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "description" {
+  description = "The description of the cognitive project"
+  type        = string
+  default     = "Example Description"
+}
+
+variable "display_name" {
+  description = "The display name of the cognitive project"
+  type        = string
+  default     = "Example Project"
+}

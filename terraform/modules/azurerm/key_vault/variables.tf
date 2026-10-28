@@ -18,3 +18,13 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "private_endpoint_subnet_id" {
+  description = "The ID of the externally managed subnet for the private endpoint."
+  type        = string
+}
+
+variable "private_dns_zone_ids" {
+  description = "The IDs of the externally managed Private DNS Zones used when the DNS zone group is configured manually."
+  type        = list(string)
+}

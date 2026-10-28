@@ -12,10 +12,10 @@ output "name" {
 }
 
 output "id" {
-  value = azurerm_cognitive_account.account.id
+  value      = azurerm_cognitive_account.account.id
+  depends_on = [azapi_update_resource.agent_network_injection]
 }
 
 output "identity_principal_id" {
   value = azurerm_cognitive_account.account.identity[0].principal_id
 }
-

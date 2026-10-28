@@ -22,10 +22,6 @@ output "cognitive_service_endpoint" {
   value = module.project.cognitive_service_endpoint
 }
 
-# output "apim_gateway_url" {
-#     value = module.project.apim_gateway_url
-# }
-
 output "search_service_name" {
   description = "The name of the Azure AI Search service"
   value       = module.project.search_service_name
