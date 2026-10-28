@@ -3,12 +3,12 @@ variable "subscription_id" {
   type        = string
 }
 
-variable "private_dns_subscription_id" {
-  description = "The Azure subscription ID containing the externally managed Private DNS Zones."
-  type        = string
-}
+# variable "private_dns_subscription_id" {
+#   description = "The Azure subscription ID containing the externally managed Private DNS Zones."
+#   type        = string
+# }
 
-variable "resource_group_name" {
+variable "existing_resource_group_name" {
   description = "The name of the existing resource group."
   type        = string
 }
@@ -74,10 +74,10 @@ variable "existing_agent_subnet_name" {
   type        = string
 }
 
-variable "existing_private_dns_zone_resource_group_name" {
-  description = "Resource group containing the externally managed Private DNS Zones."
-  type        = string
-}
+# variable "existing_private_dns_zone_resource_group_name" {
+#   description = "Resource group containing the externally managed Private DNS Zones."
+#   type        = string
+# }
 
 variable "agent_definition_template_file" {
   description = "Optional path to a custom YAML Terraform template for the agent definition."

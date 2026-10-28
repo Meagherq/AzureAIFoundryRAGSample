@@ -128,8 +128,8 @@ module "search_service" {
   # Prefer Entra ID over admin keys.
   local_authentication_enabled = false
   private_endpoint_subnet_id   = data.azurerm_subnet.existing_private_endpoint.id
-  # private_dns_zone_ids         = [data.azurerm_private_dns_zone.search.id]
   private_dns_zone_ids         = []
+  # private_dns_zone_ids         = [data.azurerm_private_dns_zone.search.id]
 }
 
 module "search_service_index" {
@@ -246,9 +246,12 @@ module "cognitive" {
   enable_private_networking  = var.enable_private_networking
   agent_subnet_id            = data.azurerm_subnet.existing_agent.id
   private_endpoint_subnet_id = data.azurerm_subnet.existing_private_endpoint.id
-  private_dns_zone_ids = [
-    data.azurerm_private_dns_zone.cognitive.id,
-    data.azurerm_private_dns_zone.azureml.id,
+  # private_dns_zone_ids = [
+  #   data.azurerm_private_dns_zone.cognitive.id,
+  #   data.azurerm_private_dns_zone.azureml.id,
+  # ]
+    private_dns_zone_ids = [
+
   ]
 }
 

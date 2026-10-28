@@ -5,7 +5,11 @@ resource_group_name = "rg-azureaifoundry-dev"
 location            = "eastus2"
 
 subscription_id             = "" # Workload subscription ID
+<<<<<<< HEAD
 private_dns_subscription_id = "" # Subscription ID containing the Private DNS Zones
+=======
+# private_dns_subscription_id = "" # Subscription ID containing the Private DNS Zones
+>>>>>>> c79c826b71a94eb0cc59c958f480281a3e4a08e0
 
 # Environment Configuration
 environment_prefix = "dev"
@@ -26,25 +30,26 @@ enable_rbac = true
 enable_private_networking = false
 
 # Existing networking and Private DNS Zones are required.
+existing_resource_group_name                 = "rg-aoai-dev"
 existing_network_resource_group_name         = "rg-network-dev"
 existing_vnet_name                           = "vnet-dev"
 existing_private_endpoint_subnet_name        = "snet-private-endpoints"
 existing_agent_subnet_name                    = "snet-foundry-agents"
-existing_private_dns_zone_resource_group_name = "rg-private-dns"
+# existing_private_dns_zone_resource_group_name = "rg-private-dns"
 
 # Optional YAML Terraform template path; defaults to the module's template.
 agent_definition_template_file = ""
 
 # OpenAI Configuration
-openai_deployment_name = "gpt41"
-openai_model_name      = "gpt-4.1"
-openai_model_version   = "2025-04-14"
-openai_model_sku_name  = "GlobalStandard"
-openai_model_sku_capacity = 50
+# openai_deployment_name = "gpt41"
+# openai_model_name      = "gpt-4.1"
+# openai_model_version   = "2025-04-14"
+# openai_model_sku_name  = "GlobalStandard"
+# openai_model_sku_capacity = 50
 
 # GPT-5.6 Luna profile (model version 2026-07-09).
 # Confirm region/quota availability and agent API compatibility before switching.
-# openai_deployment_name     = "gpt-5.6-luna"
-# openai_model_name          = "gpt-5.6-luna"
-# openai_model_version       = "2026-07-09"
-# openai_model_sku_name      = "GlobalStandard"
+openai_deployment_name     = "gpt-5.6-luna"
+openai_model_name          = "gpt-5.6-luna"
+openai_model_version       = "2026-07-09"
+openai_model_sku_name      = "GlobalStandard"

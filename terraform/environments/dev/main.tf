@@ -73,14 +73,14 @@ module "project" {
   location                                      = var.location
   data_location                                 = var.data_location
   workload                                      = var.workload
-  existing_resource_group_name                  = var.resource_group_name
+  existing_resource_group_name                  = var.existing_resource_group_name
   enable_rbac                                   = var.enable_rbac
   enable_private_networking                     = var.enable_private_networking
   existing_network_resource_group_name          = var.existing_network_resource_group_name
   existing_vnet_name                            = var.existing_vnet_name
   existing_private_endpoint_subnet_name         = var.existing_private_endpoint_subnet_name
   existing_agent_subnet_name                    = var.existing_agent_subnet_name
-  existing_private_dns_zone_resource_group_name = var.existing_private_dns_zone_resource_group_name
+  # existing_private_dns_zone_resource_group_name = var.existing_private_dns_zone_resource_group_name
   agent_definition_template_file                = var.agent_definition_template_file
   openai_deployment_name                        = var.openai_deployment_name
   openai_model_name                             = var.openai_model_name
