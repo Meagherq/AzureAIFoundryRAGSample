@@ -23,6 +23,7 @@ jobs:
     defaults:
       run:
         working-directory: ${{ env.TF_WORKING_DIR }}
+        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,6 +39,17 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Check script prerequisites and run offline Bash tests
+        run: |
+          for dependency in bash az jq base64 mktemp; do
+            command -v "$dependency" >/dev/null || {
+              echo "Required command not found: $dependency" >&2
+              exit 1
+            }
+          done
+          bash "$GITHUB_WORKSPACE/terraform/scripts/tests/az_rest.tests.sh"
+          bash "$GITHUB_WORKSPACE/terraform/modules/azurerm/ai_agent/tests/configure_agent_endpoint.tests.sh"
 
       - name: Terraform Init
         run: |
@@ -74,6 +86,7 @@ jobs:
     defaults:
       run:
         working-directory: ${{ env.TF_WORKING_DIR }}
+        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -95,6 +108,15 @@ jobs:
         with:
           name: tfplan
           path: ${{ env.TF_WORKING_DIR }}
+
+      - name: Check script prerequisites
+        run: |
+          for dependency in bash az jq base64 mktemp; do
+            command -v "$dependency" >/dev/null || {
+              echo "Required command not found: $dependency" >&2
+              exit 1
+            }
+          done
 
       - name: Terraform Init
         run: |

@@ -23,7 +23,7 @@ The solution deploys the following resources:
 2.  **Indexing Pipeline:** An Azure AI Search indexer automatically:
     *   Connects to the blob container via a datasource (configured with managed identity)
     *   Extracts content and metadata from documents using a skillset
-    *   Applies AI skills including key phrase extraction
+    *   Splits document text into overlapping chunks for retrieval
     *   Populates the search index (`ragdocs`) with indexed content
 3.  **Agent Query:** When a user asks a question through the AI Agent:
     *   The agent uses Azure AI Search to find relevant document chunks from the indexed invoices
@@ -65,8 +65,28 @@ This architecture prioritizes security by minimizing public exposure and using i
 ### Prerequisites
 *   Azure CLI (`az`)
 *   Terraform (>= 1.3; >= 1.7 to run mocked tests)
-*   PowerShell
+*   Bash, `jq`, and GNU core utilities (`base64`, `mktemp`, `rm`); PowerShell is not required
 *   An active Azure Subscription with sufficient permissions to create resources and assign RBAC roles
+*   A runner with network connectivity and private DNS resolution to the Search and Foundry project endpoints. The default private deployment requires a VNet-connected runner; a standard GitHub-hosted runner cannot reach these endpoints without additional private networking.
+
+All six REST provisioners use Bash and Azure CLI (`az rest`) with Microsoft Entra authentication.
+The deployment identity needs **Search Service Contributor** to create/update Search objects
+(**Search Index Data Contributor** alone cannot manage datasource, index, skillset, or indexer definitions)
+and the Foundry agent permissions described below. Search's system-assigned identity needs
+**Storage Blob Data Reader** on the source storage account. When `enable_rbac = true`,
+Terraform assigns these roles and waits before running the affected provisioners; otherwise assign them manually.
+
+Search objects are upserted with named `PUT` requests and reapplied when their payload, endpoint,
+API version, or script changes. The indexer references the skillset, which creates overlapping
+2,000-character chunks with 500-character overlap rather than indexing only extracted key phrases.
+The datasource uses a storage resource ID, not an account key or connection-string secret.
+
+The shared REST script receives `REST_METHOD` (`post` or `put`), `REST_URL`, `REST_RESOURCE`
+(token audience), and `REST_PAYLOAD_BASE64` through the environment. The endpoint configuration
+script requires `FOUNDRY_PROJECT_ENDPOINT`, `FOUNDRY_AGENT_NAME`, and
+`ENABLE_M365_PUBLIC_ENDPOINT` (`true` or `false`); `M365_AUTHORIZATION_SCHEME` defaults to
+`BotServiceRbac`. Terraform supplies these values. Scripts validate inputs, return failures to
+Terraform, and clean up private temporary payload files on success or failure.
 
 ### Optional Terraform Inputs
 
@@ -121,15 +141,20 @@ This setting **does not enable account-wide public network access** and is indep
 
 ### Configuration tests
 
-With PowerShell 7, Terraform >= 1.7 (for test mocks), and initialized Terraform providers, run the focused offline tests:
+With Bash, `jq`, Terraform >= 1.7 (for test mocks), and initialized Terraform providers, run the focused offline tests from the repository root:
 
-```powershell
+```bash
 terraform -chdir=terraform/modules/azurerm/ai_agent init -backend=false
+terraform -chdir=terraform/modules/azurerm/ai_agent validate
 terraform -chdir=terraform/modules/azurerm/ai_agent test
-pwsh -NoProfile -File terraform/modules/azurerm/ai_agent/tests/configure_agent_endpoint.tests.ps1
+terraform -chdir=terraform/modules/azurerm/search_service_index init -backend=false
+terraform -chdir=terraform/modules/azurerm/search_service_index validate
+terraform -chdir=terraform/modules/azurerm/search_service_index test
+bash terraform/scripts/tests/az_rest.tests.sh
+bash terraform/modules/azurerm/ai_agent/tests/configure_agent_endpoint.tests.sh
 ```
 
-The Terraform tests initialize only a mocked search connection in memory, then use plan-only runs for the agent and endpoint; no provisioners execute. The PowerShell tests mock Azure CLI calls. Neither deploys resources or invokes a live agent.
+The Terraform tests initialize only a mocked search connection in memory, then use plan-only runs for the agent, endpoint, and Search pipeline; no provisioners execute. Bash tests mock Azure CLI calls and cover request parameters, JSON preservation, M365 enable/disable behavior, malformed inputs, CLI failures, and temporary-file cleanup. Neither suite deploys resources or invokes a live agent. GitHub Actions also runs the Bash tests before planning.
 
 The dev example also includes a commented GPT-5.6 Luna profile (`gpt-5.6-luna`, version `2026-07-09`). Check model availability and quota for the target region before enabling it. GPT-5.6 tool calling is documented through the Responses API, so confirm compatibility with this sample's Assistants-style agent creation flow before switching.
 
@@ -195,48 +220,43 @@ This repository includes GitHub Actions workflows for automated deployment, dest
 
 Create an Entra ID app registration and configure federated credentials for GitHub Actions (no client secret required):
 
-```powershell
+```bash
+set -euo pipefail
+
 # Set your values
-$GITHUB_ORG = "<your-github-org-or-username>"
-$GITHUB_REPO = "<your-repo-name>"
-$SUBSCRIPTION_ID = "<your-azure-subscription-id>"
+GITHUB_ORG="<your-github-org-or-username>"
+GITHUB_REPO="<your-repo-name>"
+SUBSCRIPTION_ID="<your-azure-subscription-id>"
 
 # Create the app registration
-$APP_ID = az ad app create --display-name "github-actions-aifoundry" --query appId -o tsv
+APP_ID=$(az ad app create --display-name "github-actions-aifoundry" --query appId -o tsv)
 
 # Create the service principal
-$SP_OBJECT_ID = az ad sp create --id $APP_ID --query id -o tsv
+SP_OBJECT_ID=$(az ad sp create --id "$APP_ID" --query id -o tsv)
 
 # Assign Owner on the subscription (needed for resource creation + RBAC assignments)
-az role assignment create `
-  --role "Owner" `
-  --assignee-object-id $SP_OBJECT_ID `
-  --assignee-principal-type ServicePrincipal `
+az role assignment create \
+  --role "Owner" \
+  --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
   --scope "/subscriptions/$SUBSCRIPTION_ID"
 
 # Add federated credential for the "dev" environment
-$devParams = (@{
-  name      = "github-env-dev"
-  issuer    = "https://token.actions.githubusercontent.com"
-  subject   = "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:dev"
-  audiences = @("api://AzureADTokenExchange")
-} | ConvertTo-Json -Compress) -replace '"', '\"'
-az ad app federated-credential create --id $APP_ID --parameters $devParams
+dev_params=$(jq -nc --arg subject "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:dev" \
+  '{name:"github-env-dev", issuer:"https://token.actions.githubusercontent.com",
+    subject:$subject, audiences:["api://AzureADTokenExchange"]}')
+az ad app federated-credential create --id "$APP_ID" --parameters "$dev_params"
 
 # Add federated credential for the main branch (used by the plan job)
-$mainParams = (@{
-  name      = "github-ref-main"
-  issuer    = "https://token.actions.githubusercontent.com"
-  subject   = "repo:${GITHUB_ORG}/${GITHUB_REPO}:ref:refs/heads/main"
-  audiences = @("api://AzureADTokenExchange")
-} | ConvertTo-Json -Compress) -replace '"', '\"'
-az ad app federated-credential create --id $APP_ID --parameters $mainParams
+main_params=$(jq -nc --arg subject "repo:${GITHUB_ORG}/${GITHUB_REPO}:ref:refs/heads/main" \
+  '{name:"github-ref-main", issuer:"https://token.actions.githubusercontent.com",
+    subject:$subject, audiences:["api://AzureADTokenExchange"]}')
+az ad app federated-credential create --id "$APP_ID" --parameters "$main_params"
 
 # Print the values you need for GitHub secrets
-$TENANT_ID = az account show --query tenantId -o tsv
-Write-Host "AZURE_CLIENT_ID=$APP_ID"
-Write-Host "AZURE_TENANT_ID=$TENANT_ID"
-Write-Host "AZURE_SUBSCRIPTION_ID=$SUBSCRIPTION_ID"
+TENANT_ID=$(az account show --query tenantId -o tsv)
+printf 'AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nAZURE_SUBSCRIPTION_ID=%s\n' \
+  "$APP_ID" "$TENANT_ID" "$SUBSCRIPTION_ID"
 ```
 
 #### 2. Configure GitHub Secrets & Variables

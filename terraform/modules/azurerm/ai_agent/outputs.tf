@@ -13,6 +13,6 @@ output "sharepoint_connection_ids" {
 
 output "activity_protocol_endpoint" {
   description = "Agent Activity Protocol URL for Azure Bot Service. Publishing and channel registration are separate steps."
-  value       = "${trimsuffix(var.project_endpoints["AI Foundry API"], "/")}/agents/${var.name}/endpoint/protocols/activityprotocol"
+  value       = "${trimsuffix(var.project_endpoints["AI Foundry API"], "/")}/agents/${replace(urlencode(var.name), "+", "%20")}/endpoint/protocols/activityprotocol"
   depends_on  = [null_resource.agent_endpoint]
 }

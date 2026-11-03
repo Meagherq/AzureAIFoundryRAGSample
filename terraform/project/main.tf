@@ -137,12 +137,11 @@ module "search_service" {
 module "search_service_index" {
   source = "../modules/azurerm/search_service_index/"
 
-  resource_group_name       = data.azurerm_resource_group.existing_resource_group.name
-  location                  = var.location
-  search_service_name       = module.search_service.name
-  storage_connection_string = module.storage_account.primary_connection_string
-  storage_account_name      = module.storage_account.name
-  blob_container_name       = "test"
+  resource_group_name  = data.azurerm_resource_group.existing_resource_group.name
+  location             = var.location
+  search_service_name  = module.search_service.name
+  storage_account_name = module.storage_account.name
+  blob_container_name  = "test"
 
   datasource_name = "doc-datasource"
   index_name      = "ragdocs"
@@ -152,7 +151,6 @@ module "search_service_index" {
   # Indexer validates storage access on create, so the search MI role must be live first.
   depends_on = [
     time_sleep.wait_for_search_storage_role,
-    azurerm_role_assignment.current_user_search_contributor,
   ]
 }
 
@@ -185,6 +183,13 @@ resource "azurerm_role_assignment" "current_user_search_contributor" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+resource "azurerm_role_assignment" "current_user_search_service_contributor" {
+  count                = var.enable_rbac ? 1 : 0
+  scope                = module.search_service.id
+  role_definition_name = "Search Service Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_role_assignment" "cognitive_project_search_reader" {
   count                = var.enable_rbac ? 1 : 0
   scope                = module.search_service.id
@@ -214,8 +219,11 @@ resource "azurerm_role_assignment" "search_storage_reader" {
 }
 
 resource "time_sleep" "wait_for_search_storage_role" {
-  count           = var.enable_rbac ? 1 : 0
-  depends_on      = [azurerm_role_assignment.search_storage_reader]
+  count = var.enable_rbac ? 1 : 0
+  depends_on = [
+    azurerm_role_assignment.search_storage_reader,
+    azurerm_role_assignment.current_user_search_service_contributor,
+  ]
   create_duration = "120s"
 }
 
@@ -304,5 +312,9 @@ module "ai_agent" {
   resource_group_name        = data.azurerm_resource_group.existing_resource_group.name
   foundry_name               = module.cognitive.name
 
-  depends_on = [module.cognitive_deployment, module.search_service_index]
+  depends_on = [
+    module.cognitive_deployment,
+    module.search_service_index,
+    time_sleep.wait_for_ai_developer_role,
+  ]
 }

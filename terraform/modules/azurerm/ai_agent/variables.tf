@@ -1,6 +1,11 @@
 variable "name" {
   type        = string
   description = "The name of the AI Agent."
+
+  validation {
+    condition     = length(trimspace(var.name)) > 0
+    error_message = "The agent name must not be empty."
+  }
 }
 
 variable "sharepoint_connections" {
@@ -91,8 +96,12 @@ variable "project_id" {
 }
 
 variable "project_endpoints" {
-  type    = map(string)
-  default = {}
+  type = map(string)
+
+  validation {
+    condition     = can(regex("^https://[^/?#[:space:]]+/[^?#[:space:]]+$", var.project_endpoints["AI Foundry API"]))
+    error_message = "project_endpoints must include an HTTPS AI Foundry API project URL without a query string or fragment."
+  }
 }
 
 variable "search_service_name" {

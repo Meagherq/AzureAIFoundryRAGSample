@@ -100,37 +100,18 @@ resource "null_resource" "foundry_agent" {
     payload_hash     = sha256(local.agent_payload_json)
     project_endpoint = var.project_endpoints["AI Foundry API"]
     agent_name       = var.name
+    script_hash      = filesha256("${path.module}/../../../scripts/az_rest.sh")
   }
   provisioner "local-exec" {
-    interpreter = ["pwsh", "-Command"]
-    command     = <<-EOT
-      $base64Json = "${base64encode(local.agent_payload_json)}"
-
-      $json = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($base64Json))
-      $json | Out-File -FilePath "agent_payload.json" -Encoding UTF8
-      
-      Write-Host "Agent payload:"
-      Get-Content "agent_payload.json"
-      Write-Host ""
-      $url = "${var.project_endpoints["AI Foundry API"]}/agents/${var.name}/versions?api-version=v1"
-      Write-Host "Deploying agent to: $url"
-      
-      $response = az rest --method post `
-        --url $url `
-        --resource "https://ai.azure.com" `
-        --headers "Content-Type=application/json" `
-        --body "@agent_payload.json" 2>&1
-      
-      Write-Host "Response:"
-      Write-Host $response
-
-      Remove-Item "agent_payload.json"
-      
-      if ($LASTEXITCODE -ne 0) {
-        Write-Error "Agent deployment failed with exit code $LASTEXITCODE"
-        exit $LASTEXITCODE
-      }
-    EOT
+    interpreter = ["bash", "-c"]
+    command     = "bash \"$REST_SCRIPT\""
+    environment = {
+      REST_SCRIPT         = "${path.module}/../../../scripts/az_rest.sh"
+      REST_METHOD         = "post"
+      REST_URL            = "${trimsuffix(var.project_endpoints["AI Foundry API"], "/")}/agents/${replace(urlencode(var.name), "+", "%20")}/versions?api-version=v1"
+      REST_RESOURCE       = "https://ai.azure.com"
+      REST_PAYLOAD_BASE64 = base64encode(local.agent_payload_json)
+    }
   }
 
   lifecycle {
@@ -150,13 +131,14 @@ resource "null_resource" "agent_endpoint" {
     agent_name                  = var.name
     enable_m365_public_endpoint = tostring(var.enable_m365_public_endpoint)
     authorization_scheme        = var.m365_authorization_scheme
-    script_hash                 = filesha256("${path.module}/configure_agent_endpoint.ps1")
+    script_hash                 = filesha256("${path.module}/configure_agent_endpoint.sh")
   }
 
   provisioner "local-exec" {
-    interpreter = ["pwsh", "-NoProfile", "-Command"]
-    command     = "& '${path.module}/configure_agent_endpoint.ps1' -ProjectEndpoint $env:FOUNDRY_PROJECT_ENDPOINT -AgentName $env:FOUNDRY_AGENT_NAME -EnableM365PublicEndpoint ([bool]::Parse($env:ENABLE_M365_PUBLIC_ENDPOINT)) -AuthorizationScheme $env:M365_AUTHORIZATION_SCHEME"
+    interpreter = ["bash", "-c"]
+    command     = "bash \"$ENDPOINT_SCRIPT\""
     environment = {
+      ENDPOINT_SCRIPT             = "${path.module}/configure_agent_endpoint.sh"
       FOUNDRY_PROJECT_ENDPOINT    = self.triggers.project_endpoint
       FOUNDRY_AGENT_NAME          = self.triggers.agent_name
       ENABLE_M365_PUBLIC_ENDPOINT = self.triggers.enable_m365_public_endpoint
